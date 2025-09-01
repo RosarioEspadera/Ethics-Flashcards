@@ -853,5 +853,18 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <button id="installBtn" style="display:none;">Install</button>
+<script>
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBtn').style.display = 'block';
+});
+
+document.getElementById('installBtn').addEventListener('click', () => {
+  deferredPrompt.prompt();
+});
+</script>
 </body>
 </html>
