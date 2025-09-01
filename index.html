@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Electronics Flashcards (Offline)</title>
+   <style>
+    :root{
+      --bg:#fdf6e3; --text:#222; --card:#fff; --accent:#268bd2; --muted:#e6e6e6;
+      --brand:#007acc;
+    }
+    body.dark{ --bg:#1f1f1f; --text:#eee; --card:#2b2b2b; --accent:#ffb86c; --muted:#3a3a3a; --brand:#2d7bdc; }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      display:flex; min-height:100vh; flex-direction:column;
+    }
+    /* Top nav like your other pages */
+    .top-nav{
+      position:sticky; top:0; z-index:10; display:flex; gap:16px; align-items:center;
+      padding:10px 14px; background:var(--brand); color:#fff; box-shadow:0 2px 6px rgba(0,0,0,.2);
+    }
+    .top-nav a{ display:inline-flex; align-items:center; gap:8px; color:#fff; text-decoration:none; font-weight:600; }
+    .top-nav img{ width:28px; height:28px; filter:brightness(0) invert(1) }
+    .top-nav .spacer{ flex:1 }
+    .top-nav button{ background:rgba(255,255,255,.15); border:0; color:#fff; padding:8px 10px; border-radius:8px; cursor:pointer }
+    .top-nav button:hover{ background:rgba(255,255,255,.25) }
+
+    main{ width:100%; max-width:960px; margin:0 auto; padding:18px; flex:1; display:flex; flex-direction:column; align-items:center }
+
+    .toolbar{
+      width:100%; display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; margin:8px 0 16px;
+    }
+    select, .btn{
+      padding:10px 12px; border-radius:10px; border:1px solid var(--muted); background:var(--card); color:var(--text);
+      cursor:pointer; min-width:180px;
+    }
+    .btn.primary{ background:var(--accent); color:#fff; border-color:transparent }
+    .btn:hover{ filter:brightness(0.98) }
+
+    .card{
+      width:min(90vw, 520px); height:280px; perspective:1200px; margin:10px auto;
+    }
+    .card-inner{
+      position:relative; width:100%; height:100%; transform-style:preserve-3d; transition:transform .6s;
+    }
+    .card.flipped .card-inner{ transform:rotateY(180deg) }
+    .card-face{
+      position:absolute; inset:0; display:flex; flex-direction:column; gap:10px; justify-content:center; align-items:center;
+      padding:16px; backface-visibility:hidden; border-radius:14px; background:var(--card);
+      box-shadow:0 8px 22px rgba(0,0,0,.12);
+      text-align:center;
+    }
+    .card-back{ transform:rotateY(180deg); background:var(--accent); color:#fff }
+    h1{ margin:10px 0 6px; font-size:1.35rem }
+    .meta{ opacity:.8; font-size:.9rem }
+
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:10px 0 8px }
+    .progress{ width:min(90vw, 520px); height:8px; background:var(--muted); border-radius:999px; overflow:hidden; margin:8px auto 0 }
+    .progress > div{ height:100%; width:0%; background:var(--accent); transition:width .25s }
+
+    .hint{ font-size:.9rem; opacity:.7; margin-top:6px; text-align:center }
+
+    /* Flashcards modal (open Flashcards icon -> subject chooser) */
+    dialog{ border:none; border-radius:14px; max-width:560px; width:92vw; padding:0; background:var(--card); color:var(--text); }
+    dialog::backdrop{ background:rgba(0,0,0,.4) }
+    .dlg-head{ padding:14px 16px; background:var(--brand); color:#fff; border-top-left-radius:14px; border-top-right-radius:14px; font-weight:700 }
+    .dlg-body{ padding:16px; display:grid; gap:10px }
+    .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px }
+    .grid a{ display:block; padding:10px; border:1px solid var(--muted); border-radius:12px; background:var(--card); text-decoration:none; color:inherit }
+    .dlg-foot{ padding:12px 16px; text-align:right }
+
+/* Quiz inside card */
+  #quizArea{ width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+  #quizQuestion{ font-size:1.1rem; margin-bottom:12px; }
+  #quizOptions button{
+    width:100%; padding:8px; margin:4px 0; border:none; border-radius:8px;
+    background:#f4f4f4; cursor:pointer;
+  }
+  #quizOptions button:hover{ background:#ddd }
+  #quizFeedback{ margin-top:8px; min-height:20px; }
+  #quizScore{ margin-top:6px; font-size:.9rem; }
+  #quizNextBtn{ margin-top:10px; padding:6px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer }
+
+</style>
+</head>
+<body>
+<!-- Top nav -->
+<nav class="top-nav" role="navigation" aria-label="Primary">
+  <a href="#" id="flashcardsChooser"><img src="icons/flashcards.svg" alt="Flashcards">Flashcards</a>
+  <span class="spacer"></span>
+  <button id="themeBtn" title="Toggle theme">🌓 Theme</button>
+</nav>
+
+<main>
+  <h1>Ethics Flashcards</h1>
+
+  <div class="toolbar">
+    <select id="topicSelect" title="Choose topic">
+      <option value="practical_applications" selected>Practical Applications</option>
+      <option value="environmental_issues" selected>Enviromental Issues</option>
+      <option value="ethical_principles" selected>Ethical Principles</option>
+      <option value="human_position_in_nature" selected>Human Position In Nature</option>
+    </select>
+
+<select id="modeSelect" title="Choose mode">
+    <option value="flashcards" selected>Flashcards</option>
+    <option value="quiz">Quiz</option>
+  </select>
+
+    <button class="btn" id="prevBtn">◀ Prev</button>
+    <button class="btn" id="nextBtn">Next ▶</button>
+    <button class="btn" id="shuffleBtn">🔀 Shuffle</button>
+    <button class="btn" id="resetBtn">↺ Reset</button>
+    <button class="btn primary" id="loadJsonBtn">📥 Load JSON</button>
+  </div>
+
+  <div class="card" id="card">
+    <div class="card-inner" id="cardInner">
+      <div class="card-face card-front">
+        <div id="qText">Question</div>
+        <div class="meta" id="metaFront">—</div>
+      </div>
+      <div class="card-face card-back">
+        <div id="aText">Answer</div>
+        <div class="meta" id="metaBack">Tap to flip back</div>
+      </div>
+    </div>
+  </div>
+
+<!-- Quiz -->
+    <div id="quizArea" style="display:none;">
+      <div id="quizQuestion"></div>
+      <div id="quizOptions"></div>
+      <div id="quizFeedback"></div>
+      <div id="quizScore"></div>
+      <button id="quizNextBtn" style="display:none;">Next</button>
+    </div>
+
+  <div class="controls">
+    <span id="counter">Card 1 / 1</span>
+  </div>
+  <div class="progress"><div id="progressFill"></div></div>
+  <div class="hint">Tip: tap the card to flip • long-press Next to jump +5 • works fully offline</div>
+</main>
+
+<!-- Flashcards chooser dialog (when clicking the Flashcards icon) -->
+<dialog id="chooserDlg">
+  <div class="dlg-head">Choose Flashcards Subject</div>
+  <div class="dlg-body">
+    <p>Select a subject:</p>
+    <div class="grid">
+      <a href="index.html">Ethics Chapter 3</a>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn" id="closeChooser">Close</button>
+  </div>
+</dialog>
+
+<!-- ==========================
+     Embedded Topic Packs
+     ========================== -->
+
+<!-- Topic: Structure of Materials (100 cards) -->
+<script id="practical_applications" type="application/json">
+  
+[
+  {
+    "id": "PA-01",
+    "question": "How can education promote environmental ethics?",
+    "answer": "By raising awareness and teaching sustainable practices."
+  },
+  {
+    "id": "PA-02",
+    "question": "What is an example of an eco-friendly daily habit?",
+    "answer": "Recycling waste materials."
+  },
+  {
+    "id": "PA-03",
+    "question": "How can communities conserve energy?",
+    "answer": "By using renewable sources like solar and wind power."
+  },
+  {
+    "id": "PA-04",
+    "question": "What is the role of government in environmental ethics?",
+    "answer": "Implementing laws and policies for protection."
+  },
+  {
+    "id": "PA-05",
+    "question": "What is green consumerism?",
+    "answer": "Choosing products that are eco-friendly and sustainable."
+  },
+  {
+    "id": "PA-06",
+    "question": "How can students practice sustainability?",
+    "answer": "By reducing waste, conserving energy, and joining green programs."
+  },
+  {
+    "id": "PA-07",
+    "question": "What is reforestation?",
+    "answer": "Planting trees to restore ecosystems."
+  },
+  {
+    "id": "PA-08",
+    "question": "How can businesses support environmental ethics?",
+    "answer": "By adopting sustainable production and reducing pollution."
+  },
+  {
+    "id": "PA-09",
+    "question": "What local project supports sustainability?",
+    "answer": "Community clean-up drives and tree planting."
+  },
+  {
+    "id": "PA-10",
+    "question": "How can technology help protect the environment?",
+    "answer": "By developing eco-friendly innovations such as renewable energy systems."
+  }
+]
+</script>
+<script id="environmental_issues" type="application/json">
+    [
+  {
+    "id": "EI-01",
+    "question": "What causes climate change?",
+    "answer": "Human activities such as burning fossil fuels and deforestation."
+  },
+  {
+    "id": "EI-02",
+    "question": "What is the main effect of deforestation?",
+    "answer": "Loss of biodiversity and habitat destruction."
+  },
+  {
+    "id": "EI-03",
+    "question": "What type of pollution contaminates rivers and lakes?",
+    "answer": "Water pollution."
+  },
+  {
+    "id": "EI-04",
+    "question": "What is the impact of air pollution?",
+    "answer": "It causes respiratory problems and global warming."
+  },
+  {
+    "id": "EI-05",
+    "question": "What does soil contamination affect?",
+    "answer": "Food safety and agricultural productivity."
+  },
+  {
+    "id": "EI-06",
+    "question": "What drives overconsumption of natural resources?",
+    "answer": "Consumerism and industrial expansion."
+  },
+  {
+    "id": "EI-07",
+    "question": "What is biodiversity loss?",
+    "answer": "The decline in the variety of species due to human activity."
+  },
+  {
+    "id": "EI-08",
+    "question": "What global issue is linked to melting ice caps?",
+    "answer": "Climate change and rising sea levels."
+  },
+  {
+    "id": "EI-09",
+    "question": "What is desertification?",
+    "answer": "The process of fertile land becoming desert due to poor practices."
+  },
+  {
+    "id": "EI-10",
+    "question": "What environmental issue is worsened by plastic waste?",
+    "answer": "Pollution of oceans and harm to marine life."
+  }
+]
+</script>
+<script id="ethical_principles" type="application/json">
+    [
+  {
+    "id": "EP-01",
+    "question": "What is stewardship?",
+    "answer": "The duty of humans to care for and protect the natural world."
+  },
+  {
+    "id": "EP-02",
+    "question": "Define sustainability.",
+    "answer": "Meeting present needs without compromising future generations."
+  },
+  {
+    "id": "EP-03",
+    "question": "What is respect for life?",
+    "answer": "Acknowledging the dignity and value of all living things."
+  },
+  {
+    "id": "EP-04",
+    "question": "What principle emphasizes resource conservation?",
+    "answer": "Sustainability."
+  },
+  {
+    "id": "EP-05",
+    "question": "Why is stewardship important?",
+    "answer": "Because humans have power to protect or destroy nature."
+  },
+  {
+    "id": "EP-06",
+    "question": "What principle avoids harming living beings unnecessarily?",
+    "answer": "Respect for life."
+  },
+  {
+    "id": "EP-07",
+    "question": "What ethical value is key to environmental justice?",
+    "answer": "Fairness in distributing environmental benefits and burdens."
+  },
+  {
+    "id": "EP-08",
+    "question": "What is intergenerational responsibility?",
+    "answer": "The duty to preserve resources for future generations."
+  },
+  {
+    "id": "EP-09",
+    "question": "What principle supports renewable energy use?",
+    "answer": "Sustainability."
+  },
+  {
+    "id": "EP-10",
+    "question": "What principle requires humans to value biodiversity?",
+    "answer": "Respect for life."
+  }
+]
+</script>
+<script id="human_position_in_nature" type="application/json">
+    [
+  {
+    "id": "HPN-01",
+    "question": "How are humans related to nature?",
+    "answer": "Humans are part of the natural ecosystem, not separate from it."
+  },
+  {
+    "id": "HPN-02",
+    "question": "What role does nature play in human survival?",
+    "answer": "Nature provides food, water, air, and resources essential for human survival."
+  },
+  {
+    "id": "HPN-03",
+    "question": "What has increased human impact on nature?",
+    "answer": "Technological progress and industrialization."
+  },
+  {
+    "id": "HPN-04",
+    "question": "What ethical duty do humans have toward nature?",
+    "answer": "To balance human needs with ecological preservation."
+  },
+  {
+    "id": "HPN-05",
+    "question": "Why are humans considered caretakers of nature?",
+    "answer": "Because of their intelligence and capacity to make ethical choices."
+  },
+  {
+    "id": "HPN-06",
+    "question": "How does overpopulation affect the natural world?",
+    "answer": "It increases pressure on resources and leads to environmental degradation."
+  },
+  {
+    "id": "HPN-07",
+    "question": "What is the consequence of treating nature only as a resource?",
+    "answer": "It leads to exploitation and destruction of ecosystems."
+  },
+  {
+    "id": "HPN-08",
+    "question": "How are humans interconnected with the environment?",
+    "answer": "Through ecological systems that sustain life."
+  },
+  {
+    "id": "HPN-09",
+    "question": "Why is environmental ethics important for humanity’s survival?",
+    "answer": "Because humans depend on healthy ecosystems to thrive."
+  },
+  {
+    "id": "HPN-10",
+    "question": "What mindset should humans adopt toward the natural world?",
+    "answer": "That humans are co-inhabitants, not masters, of the Earth."
+  }
+]
+</script>
+
+
+<!-- ==========================
+     App logic
+     ========================== -->
+<script>
+(function(){
+  'use strict';
+
+  // DOM elements
+  const topicSelect   = document.getElementById('topicSelect');
+  const qText         = document.getElementById('qText');
+  const aText         = document.getElementById('aText');
+  const metaFront     = document.getElementById('metaFront');
+  const metaBack      = document.getElementById('metaBack');
+  const cardEl        = document.getElementById('card');
+  const cardInner     = document.getElementById('cardInner');
+  const prevBtn       = document.getElementById('prevBtn');
+  const nextBtn       = document.getElementById('nextBtn');
+  const shuffleBtn    = document.getElementById('shuffleBtn');
+  const resetBtn      = document.getElementById('resetBtn');
+  const progressFill  = document.getElementById('progressFill');
+  const counter       = document.getElementById('counter');
+  const loadJsonBtn   = document.getElementById('loadJsonBtn');
+  const modeSelect    = document.getElementById("modeSelect");
+  const quizArea      = document.getElementById("quizArea");
+  const quizQuestion  = document.getElementById("quizQuestion");
+  const quizOptions   = document.getElementById("quizOptions");
+  const quizFeedback  = document.getElementById("quizFeedback");
+  const quizScore     = document.getElementById("quizScore");
+  const quizNextBtn   = document.getElementById("quizNextBtn");
+  const themeBtn      = document.getElementById("themeBtn");
+  const closeChooser  = document.getElementById('closeChooser');
+  const flashcardsChooser = document.getElementById('flashcardsChooser');
+  const chooserDlg    = document.getElementById('chooserDlg'); // FIXED
+
+  // Flip on click
+cardEl.addEventListener("click", () => {
+  cardEl.classList.toggle("flipped");
+});
+
+  // open the dialog
+  flashcardsChooser.addEventListener('click', (e) => {
+    e.preventDefault();   // prevent default link behavior
+    chooserDlg.showModal();
+  });
+
+  // close the dialog
+  closeChooser.addEventListener('click', () => {
+    chooserDlg.close();
+  });
+
+  // Flashcard deck
+  let deck = [];
+  let idx = 0;
+
+  // quiz state
+  let quizDeck = [];
+  let quizIdx = 0;
+  let score = 0;
+
+  // ---------------- QUIZ ----------------
+  function startQuiz(){
+    quizDeck = [...deck];  // clone current deck
+    shuffleArray(quizDeck);
+    quizIdx = 0;
+    score = 0;
+    quizScore.textContent = `Score: 0 / ${quizDeck.length}`;
+    quizFeedback.textContent = "";
+    showQuizQuestion();
+  }
+
+  function showQuizQuestion(){
+    if (quizIdx >= quizDeck.length){
+      quizQuestion.textContent = "Quiz finished!";
+      quizOptions.innerHTML = "";
+      quizFeedback.textContent = `Final Score: ${score} / ${quizDeck.length}`;
+      quizNextBtn.style.display = "none";
+      counter.textContent = `Quiz finished`;
+      progressFill.style.width = "100%";
+      return;
+    }
+
+    const q = quizDeck[quizIdx];
+    quizQuestion.textContent = q.question;
+
+    // update counter + progress bar
+    counter.textContent = `Question ${quizIdx+1} / ${quizDeck.length}`;
+    progressFill.style.width = `${((quizIdx+1)/quizDeck.length)*100}%`;
+
+    // collect all answers from all topics
+    let allAnswers = [];
+    document.querySelectorAll("script[type='application/json']").forEach(s=>{
+      try {
+        const parsed = JSON.parse(s.textContent);
+        if (Array.isArray(parsed)) allAnswers.push(...parsed);
+      } catch(e){}
+    });
+    if (allAnswers.length === 0) allAnswers = quizDeck;
+
+    // build options
+    let options = [q.answer];
+    while (options.length < 4){
+      let candidate = allAnswers[Math.floor(Math.random()*allAnswers.length)].answer;
+      if (!options.includes(candidate)) options.push(candidate);
+    }
+    shuffleArray(options); // FIXED
+
+    quizOptions.innerHTML = "";
+    options.forEach(opt=>{
+      const btn = document.createElement("button");
+      btn.textContent = opt;
+      btn.onclick = ()=>{
+        if (opt === q.answer){
+          quizFeedback.textContent = "✅ Correct!";
+          score++;
+        } else {
+          quizFeedback.textContent = `❌ Wrong! Correct: ${q.answer}`;
+        }
+        quizScore.textContent = `Score: ${score} / ${quizDeck.length}`;
+        // disable all buttons after answering
+        [...quizOptions.children].forEach(b=>b.disabled = true);
+      };
+      quizOptions.appendChild(btn);
+    });
+
+    quizNextBtn.style.display = "inline-block";
+    quizNextBtn.onclick = ()=>{
+      quizIdx++;
+      quizFeedback.textContent = "";
+      showQuizQuestion();
+    };
+  }
+
+  // ---------------- FLASHCARDS ----------------
+  function renderCard(){
+    if (!deck.length) return;
+    const c = deck[idx];
+    qText.textContent = c.question;   // FIXED
+    aText.textContent = c.answer;     // FIXED
+    metaFront.textContent = [
+      c.tags && c.tags.length ? `Tags: ${c.tags.join(', ')}` : null,
+      c.difficulty ? `Difficulty: ${c.difficulty}` : null
+    ].filter(Boolean).join('  •  ') || ' ';
+    metaBack.textContent = c.id ? `ID: ${c.id}` : ' ';
+    counter.textContent = `Card ${idx+1} / ${deck.length}`;
+    progressFill.style.width = `${((idx+1)/deck.length)*100}%`;
+    cardEl.classList.remove("flipped");
+  }
+
+  // ---------------- TOPICS ----------------
+  function loadTopicFromScript(scriptId){
+    const el = document.getElementById(scriptId);
+    if (!el) { alert('Topic not found: ' + scriptId); return; }
+    try {
+      const arr = JSON.parse(el.textContent);
+      if (!Array.isArray(arr) || arr.length === 0) throw new Error('Empty or invalid deck');
+      deck = normalizeDeck(arr);
+      idx = 0;
+      saveLastTopic(scriptId);
+      renderCard();
+    } catch (e){
+      alert('Failed to parse topic: ' + (e.message || e));
+    }
+  }
+
+  function saveLastTopic(id){ try { localStorage.setItem('mse:lastTopic', id); } catch {} }
+  function restoreLastTopic(){
+    try {
+      const id = localStorage.getItem('mse:lastTopic');
+      if (id && document.getElementById(id)) {
+        topicSelect.value = id;
+        loadTopicFromScript(id);
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  function normalizeDeck(arr){
+    return arr.map((c, i) => ({
+      id: c.id || `CARD-${i+1}`,
+      question: c.question || c.q || '',
+      answer: c.answer || c.a || '',
+      tags: c.tags || [],
+      difficulty: c.difficulty || ''
+    })).filter(c => c.question && c.answer);
+  }
+
+  // ---------------- HELPERS ----------------
+  function shuffleArray(a){
+    for (let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+  }
+
+  function next(step){
+    if (!deck.length) return;
+    idx = (idx + step + deck.length) % deck.length;
+    renderCard();
+  }
+
+  function shuffleDeck(){
+    shuffleArray(deck);
+    idx = 0;
+    renderCard();
+  }
+
+  // ---------------- EVENTS ----------------
+  topicSelect.addEventListener("change", e => loadTopicFromScript(e.target.value));
+  nextBtn.addEventListener('click', ()=> next(1));
+  prevBtn.addEventListener('click', ()=> next(-1));
+  shuffleBtn.addEventListener('click', shuffleDeck);
+
+  // reset button
+  resetBtn.addEventListener('click', ()=> { 
+    if (modeSelect.value === "quiz") {
+      score = 0;  
+      startQuiz();   // restart quiz from first question
+    } else {
+      idx = 0;       // go back to first flashcard
+      renderCard();
+    }
+  });
+
+  // long-press Next to jump +5
+  let pressT = null;
+  nextBtn.addEventListener('pointerdown', ()=> pressT = setTimeout(()=> next(5), 500));
+  nextBtn.addEventListener('pointerup', ()=> { clearTimeout(pressT); pressT=null; });
+  nextBtn.addEventListener('pointerleave', ()=> { clearTimeout(pressT); pressT=null; });
+
+  // Keyboard
+  window.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') next(1);
+    if (e.key === 'ArrowLeft') next(-1);
+    if (e.key === ' ') cardEl.classList.toggle('flipped');
+  });
+
+  // Mode switch
+  modeSelect.addEventListener("change", ()=>{
+    if (modeSelect.value === "quiz") {
+      cardEl.style.display = "none";
+      prevBtn.style.display = "none";
+      nextBtn.style.display = "none";
+      quizArea.style.display = "flex";
+      startQuiz();
+    } else {
+      cardEl.style.display = "block";
+      prevBtn.style.display = "inline-block";
+      nextBtn.style.display = "inline-block";
+      quizArea.style.display = "none";
+      renderCard();
+    }
+  });
+
+  // Theme toggle
+  themeBtn.addEventListener("click", ()=> document.body.classList.toggle("dark"));
+
+  // Load JSON externally
+  loadJsonBtn.addEventListener("click", async ()=>{
+    try{
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json';
+      input.onchange = () => {
+        const f = input.files && input.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try{
+            const arr = JSON.parse(reader.result);
+            if (!Array.isArray(arr) || arr.length === 0) throw new Error('Invalid or empty JSON deck');
+            deck = normalizeDeck(arr);
+            idx = 0;
+            const tempId = 'topic-loaded';
+            ensureTempOption(tempId, f.name.replace(/\.json$/i,'') + ' (loaded)');
+            topicSelect.value = tempId;
+            renderCard();
+          } catch(err){ alert('Error parsing JSON: ' + err.message); }
+        };
+        reader.readAsText(f);
+      };
+      input.click();
+    }catch(err){ alert('Load failed: ' + (err.message||err)); }
+  });
+
+  function ensureTempOption(id, label){
+    let opt = topicSelect.querySelector(`option[value="${id}"]`);
+    if (!opt){
+      opt = document.createElement('option');
+      opt.value = id; opt.textContent = label;
+      topicSelect.appendChild(opt);
+    } else {
+      opt.textContent = label;
+    }
+  }
+  
+  // ---------------- INIT ----------------
+  if (!restoreLastTopic()){
+    loadTopicFromScript(topicSelect.value);
+  }
+
+})();
+</script>
+
+
+</body>
+</html>
